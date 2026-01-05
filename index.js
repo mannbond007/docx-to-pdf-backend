@@ -8,5 +8,4 @@ app.use(cors());
 
 app.use("/api/convert", convertRoute);
 
-// ❌ NO app.listen() on Vercel
 export default app;
