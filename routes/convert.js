@@ -1,13 +1,13 @@
 import express from "express";
 import multer from "multer";
 import mammoth from "mammoth";
-import pdf from "html-pdf-node";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
 const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 router.post("/", upload.single("file"), async (req, res) => {
@@ -16,32 +16,40 @@ router.post("/", upload.single("file"), async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // DOCX → HTML
-    const { value: html } = await mammoth.convertToHtml({
-      buffer: req.file.buffer
+    // DOCX → TEXT
+    const { value } = await mammoth.extractRawText({
+      buffer: req.file.buffer,
     });
 
-    // HTML → PDF (FORCE BUFFER OUTPUT)
-    const pdfBuffer = await pdf.generatePdf(
-      { content: html },
-      {
-        format: "A4",
-        printBackground: true
-      }
-    );
+    // CREATE PDF
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // ✅ CRITICAL HEADERS
+    const { width, height } = page.getSize();
+    const fontSize = 12;
+
+    page.drawText(value || "Empty document", {
+      x: 50,
+      y: height - 50,
+      size: fontSize,
+      font,
+      maxWidth: width - 100,
+      lineHeight: 14,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       "attachment; filename=converted.pdf"
     );
 
-    // ✅ SEND AS PURE BINARY
-    return res.status(200).send(Buffer.from(pdfBuffer));
+    return res.status(200).send(Buffer.from(pdfBytes));
 
   } catch (err) {
-    console.error("PDF conversion error:", err);
+    console.error("PDF error:", err);
     return res.status(500).json({ message: "PDF conversion failed" });
   }
 });
