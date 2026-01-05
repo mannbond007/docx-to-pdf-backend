@@ -21,23 +21,27 @@ router.post("/", upload.single("file"), async (req, res) => {
       buffer: req.file.buffer
     });
 
-    // HTML → PDF
+    // HTML → PDF (FORCE BUFFER OUTPUT)
     const pdfBuffer = await pdf.generatePdf(
       { content: html },
-      { format: "A4" }
+      {
+        format: "A4",
+        printBackground: true
+      }
     );
 
-    // 🔑 THESE HEADERS ARE CRITICAL
+    // ✅ CRITICAL HEADERS
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       "attachment; filename=converted.pdf"
     );
-    res.setHeader("Content-Length", pdfBuffer.length);
 
-    return res.end(pdfBuffer); // 🔥 IMPORTANT: res.end, not res.send
+    // ✅ SEND AS PURE BINARY
+    return res.status(200).send(Buffer.from(pdfBuffer));
+
   } catch (err) {
-    console.error(err);
+    console.error("PDF conversion error:", err);
     return res.status(500).json({ message: "PDF conversion failed" });
   }
 });
